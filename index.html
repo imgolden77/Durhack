@@ -1,126 +1,212 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Fuel Cost Calculator</title>
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-  <body>
-    <main class="wrap">
-      <div class="container">
-        <h1 class="title">Fuel Cost Calculator</h1>
 
-        <section class="panel" aria-label="Trip inputs">
-          <!-- Row: Year / Company / Model -->
-          <div class="row-3">
-            <div class="field">
-              <label for="year">Year</label>
-              <select id="year" name="year" aria-label="Year">
-                <option value="" selected disabled>Select year</option>
-                <!-- Years from 1985 to 2026 -->
-                <option>2026</option>
-                <option>2025</option>
-                <option>2024</option>
-                <option>2023</option>
-                <option>2022</option>
-                <option>2021</option>
-                <option>2020</option>
-                <option>2019</option>
-                <option>2018</option>
-                <option>2017</option>
-                <option>2016</option>
-                <option>2015</option>
-                <option>2014</option>
-                <option>2013</option>
-                <option>2012</option>
-                <option>2011</option>
-                <option>2010</option>
-                <option>2009</option>
-                <option>2008</option>
-                <option>2007</option>
-                <option>2006</option>
-                <option>2005</option>
-                <option>2004</option>
-                <option>2003</option>
-                <option>2002</option>
-                <option>2001</option>
-                <option>2000</option>
-                <option>1999</option>
-                <option>1998</option>
-                <option>1997</option>
-                <option>1996</option>
-                <option>1995</option>
-                <option>1994</option>
-                <option>1993</option>
-                <option>1992</option>
-                <option>1991</option>
-                <option>1990</option>
-                <option>1989</option>
-                <option>1988</option>
-                <option>1987</option>
-                <option>1986</option>
-                <option>1985</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="company">Company</label>
-              <select id="company" name="company" aria-label="Company">
-                <option value="" selected disabled>Select company</option>
-                <option>Toyota</option>
-                <option>Ford</option>
-                <option>Honda</option>
-                <option>BMW</option>
-              </select>
-            </div>
-            <div class="field">
-              <label for="model">Model</label>
-              <select id="model" name="model" aria-label="Model">
-                <option value="" selected disabled>Select model</option>
-                <option>Camry</option>
-                <option>Corolla</option>
-                <option>Civic</option>
-                <option>Focus</option>
-              </select>
-            </div>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Fuel Cost Calculator</title>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <main class="wrap">
+    <div class="container">
+      <h1 class="title">Fuel Cost Calculator</h1>
+
+      <section class="panel" aria-label="Trip inputs">
+        <!-- Row: Year / Company / Model -->
+        <div class="row-3">
+          <div class="field">
+            <label for="year">Year</label>
+            <select id="year" name="year" aria-label="Year">
+              <option value="" selected disabled>Select year</option>
+            </select>
           </div>
 
-          <div class="spacer"></div>
-
-          <!-- Row: Distance / Price per litre -->
-          <div class="row-2">
-            <div class="field">
-              <label for="distance">Distance (miles)</label>
-              <input id="distance" type="number" placeholder="e.g. 300" />
-            </div>
-            <div class="field">
-              <label for="ppl">Price per litre (£)</label>
-              <input
-                id="ppl"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 1.45"
-              />
-            </div>
+          <div class="field">
+            <label for="company">Company</label>
+            <select id="company" name="company" aria-label="Company">
+              <option value="" selected disabled>Select company</option>
+            </select>
           </div>
 
-          <div class="spacer"></div>
+          <div class="field">
+            <label for="model">Model</label>
+            <select id="model" name="model" aria-label="Model">
+              <option value="" selected disabled>Select model</option>
+            </select>
+          </div>
+        </div>
 
-          <button class="btn" type="button" aria-disabled="true">
-            Calculate cost
-          </button>
-        </section>
+        <div id="results-div"></div>
 
-        <div class="result">Trip cost: —</div>
-        <p class="footer-note">
-          Design-only. Add JavaScript later for calculations.
-        </p>
-      </div>
-    </main>
-  </body>
+        <!-- Row: Distance / Price per litre -->
+        <div class="row-2">
+          <div class="field">
+            <label for="distance">Distance (miles)</label>
+            <input id="distance" type="number" placeholder="e.g. 300" />
+          </div>
+          <div class="field">
+            <label for="ppl">Fuel per mile(gallons/mile)</label>
+            <input id="ppl" type="number" step="0.0001" placeholder="e.g. 1.45" />
+          </div>
+        </div>
+
+        <div class="spacer"></div>
+
+
+        <button id="calcBtn" class="btn" type="button" aria-disabled="true" disabled>
+          Calculate total fuel
+        </button>
+      </section>
+
+      <div class="result">Trip fuel: —</div>
+      <p class="footer-note">
+        Durhack 2025 - Developed by Team Golden
+      </p>
+    </div>
+
+    <script>
+      // API server basic URL
+      const API_BASE_URL = "http://127.0.0.1:8000";
+
+      // HTML components
+      const yearSelect = document.getElementById('year');
+      const makeSelect = document.getElementById('company');
+      const modelSelect = document.getElementById('model');
+      const resultsDiv = document.getElementById('results-div');
+      const calcBtn = document.getElementById('calcBtn');
+      const distanceInput = document.getElementById('distance');
+      const pplInput = document.getElementById('ppl');
+
+      // helper: set/clear results
+      const setResults = (html) => { resultsDiv.innerHTML = html; };
+      const clearResults = () => { resultsDiv.innerHTML = ''; };
+
+      makeSelect.disabled = true;
+      modelSelect.disabled = true;
+
+      // Calculate button event
+      calcBtn.addEventListener('click', () => {
+        const distance = parseFloat(distanceInput.value);
+        const gpm = parseFloat(pplInput.value);
+        const outputEl = document.querySelector('.result');
+
+        if (isNaN(distance) || isNaN(gpm)) {
+          outputEl.textContent = 'Trip cost: Please check your inputs (distance, fuel per mile).';
+          return;
+        }
+
+        const totalGallons = distance * gpm;
+        outputEl.textContent = `Trip fuel: ${totalGallons.toFixed(4)} gallons`;
+      });
+
+      // --- 1. page load: years---
+      window.onload = async () => {
+        try {
+          const response = await fetch(`${API_BASE_URL}/years`);
+          const data = await response.json();
+
+          data.years.forEach(year => {
+            const option = new Option(year, year);
+            yearSelect.add(option);
+          });
+
+        } catch (error) {
+          console.error("Fail to load years:", error);
+          resultsDiv.innerHTML = "<h2>check if backend server(uvicorn) is running.</h2>";
+        }
+      };
+
+      // --- 2. year choose: load maker ---
+      yearSelect.onchange = async () => {
+
+        makeSelect.innerHTML = '<option value="">Select Company</option>';
+        modelSelect.innerHTML = '<option value="">Select model</option>';
+        clearResults();
+        makeSelect.disabled = true;
+        modelSelect.disabled = true;
+
+        const selectedYear = yearSelect.value;
+        if (!selectedYear) return;
+
+        const response = await fetch(`${API_BASE_URL}/makes?year=${selectedYear}`);
+        const data = await response.json();
+
+        data.makes.forEach(make => {
+          const option = new Option(make, make);
+          makeSelect.add(option);
+        });
+        makeSelect.disabled = false;
+      };
+
+      // --- Choose Model ---
+      makeSelect.onchange = async () => {
+        modelSelect.innerHTML = '<option value="">Select Model</option>';
+        clearResults();
+        modelSelect.disabled = true;
+
+        const selectedYear = yearSelect.value;
+        const selectedMake = makeSelect.value;
+        if (!selectedMake) return;
+
+        // Call API
+        const response = await fetch(`${API_BASE_URL}/models?year=${selectedYear}&make=${selectedMake}`);
+        const data = await response.json();
+
+        data.models.forEach(model => {
+          const option = new Option(model, model);
+          modelSelect.add(option);
+        });
+        modelSelect.disabled = false;
+      };
+
+      // // --- 4. load final GPM ---
+      modelSelect.onchange = async () => {
+        resultsDiv.innerHTML = '';
+
+        const selectedYear = yearSelect.value;
+        const selectedMake = makeSelect.value;
+        const selectedModel = modelSelect.value;
+        if (!selectedModel) return;
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/results?year=${encodeURIComponent(selectedYear)}&make=${encodeURIComponent(selectedMake)}&model=${encodeURIComponent(selectedModel)}`);
+          const data = await response.json();
+
+          if (!data.results || data.results.length === 0) {
+            resultsDiv.innerHTML = "<h3>We can't find the result.</h3>";
+            return;
+          }
+
+          // Use first result
+          const car = data.results[0];
+
+          const comb08 = car.comb08 ?? car.comb08A ?? null;
+          if (comb08 == null) {
+            setResults("<h3> There is no information about MPG</h3>");
+          } else {
+            pplInput.value = (1 / comb08).toFixed(6);
+            setResults(`<div><strong>${car.model}</strong><div>Combined: ${comb08} MPG</div></div>`);
+          }
+
+          // Activate Calculate button
+          calcBtn.removeAttribute('aria-disabled');
+          calcBtn.disabled = false;
+
+        } catch (error) {
+          console.error("Fail to load results:", error);
+          setResults("<h3>Error loading results.</h3>");
+        }
+      };
+
+    </script>
+    <div class="spacer"></div>
+
+
+  </main>
+</body>
+
 </html>
