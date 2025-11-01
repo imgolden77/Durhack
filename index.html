@@ -81,15 +81,14 @@
       const distanceInput = document.getElementById('distance');
       const pplInput = document.getElementById('ppl');
 
-      // helper: 결과 출력 / 초기화
+      // helper: set/clear results
       const setResults = (html) => { resultsDiv.innerHTML = html; };
       const clearResults = () => { resultsDiv.innerHTML = ''; };
 
-      // 초기 상태: 하위 드롭다운 비활성화
       makeSelect.disabled = true;
       modelSelect.disabled = true;
 
-      // 계산 버튼 클릭: distance * MPG(=ppl) 계산
+      // Calculate button event
       calcBtn.addEventListener('click', () => {
         const distance = parseFloat(distanceInput.value);
         const gpm = parseFloat(pplInput.value);
@@ -100,7 +99,7 @@
           return;
         }
 
-        const totalGallons = distance * gpm; // 요청하신 대로 곱함
+        const totalGallons = distance * gpm;
         outputEl.textContent = `Trip fuel: ${totalGallons.toFixed(4)} gallons`;
       });
 
@@ -110,9 +109,8 @@
           const response = await fetch(`${API_BASE_URL}/years`);
           const data = await response.json();
 
-          // <option value="2024">2024</option> 태그를 만들어서 삽입
           data.years.forEach(year => {
-            const option = new Option(year, year); // (보여줄 텍스트, 실제 값)
+            const option = new Option(year, year);
             yearSelect.add(option);
           });
 
@@ -125,7 +123,6 @@
       // --- 2. year choose: load maker ---
       yearSelect.onchange = async () => {
 
-        // 하위 드롭다운 초기화
         makeSelect.innerHTML = '<option value="">Select Company</option>';
         modelSelect.innerHTML = '<option value="">Select model</option>';
         clearResults();
@@ -135,7 +132,6 @@
         const selectedYear = yearSelect.value;
         if (!selectedYear) return;
 
-        // API 호출
         const response = await fetch(`${API_BASE_URL}/makes?year=${selectedYear}`);
         const data = await response.json();
 
@@ -143,7 +139,7 @@
           const option = new Option(make, make);
           makeSelect.add(option);
         });
-        makeSelect.disabled = false; // 드롭다운 활성화
+        makeSelect.disabled = false;
       };
 
       // --- Choose Model ---
@@ -156,7 +152,7 @@
         const selectedMake = makeSelect.value;
         if (!selectedMake) return;
 
-        // API 호출
+        // Call API
         const response = await fetch(`${API_BASE_URL}/models?year=${selectedYear}&make=${selectedMake}`);
         const data = await response.json();
 
@@ -164,12 +160,12 @@
           const option = new Option(model, model);
           modelSelect.add(option);
         });
-        modelSelect.disabled = false; // 드롭다운 활성화
+        modelSelect.disabled = false;
       };
 
-      // // --- 4. 모델 선택 시: 최종 연비 결과 불러오기 ---
+      // // --- 4. load final GPM ---
       modelSelect.onchange = async () => {
-        resultsDiv.innerHTML = ''; // 이전 결과 삭제
+        resultsDiv.innerHTML = '';
 
         const selectedYear = yearSelect.value;
         const selectedMake = makeSelect.value;
@@ -185,19 +181,18 @@
             return;
           }
 
-          // 첫 번째 결과를 사용 (필요하면 선택 UI 추가 가능)
+          // Use first result
           const car = data.results[0];
 
           const comb08 = car.comb08 ?? car.comb08A ?? null;
           if (comb08 == null) {
             setResults("<h3> There is no information about MPG</h3>");
           } else {
-            // comb08을 ppl에 넣음 (주의: comb08은 보통 MPG 단위입니다)
             pplInput.value = (1 / comb08).toFixed(6);
             setResults(`<div><strong>${car.model}</strong><div>Combined: ${comb08} MPG</div></div>`);
           }
 
-          // Calculate 버튼 활성화
+          // Activate Calculate button
           calcBtn.removeAttribute('aria-disabled');
           calcBtn.disabled = false;
 
