@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Leaflet 지도에 경로 그리기</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+
+        #instructions {
+            padding: 10px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="instructions">
+        <b>지도에 클릭:</b> 1. 출발지 선택 2. 목적지 선택
+    </div>
+    <div id="map"></div>
+
+    <script>
+        // ---------------------------------------------
+        // 1. 여기에 여러분의 ORS API 키를 넣으세요
+        // ---------------------------------------------
+        const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllOGI1Y2I0MDY5OTQ0YjM4NTA0ZTY3N2Y5NmQyYTE2IiwiaCI6Im11cm11cjY0In0=';
+
+        // 지도 초기화 (이전과 동일)
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // --- ORS 연동 로직 ---
+
+        let startPoint = null;
+        let endPoint = null;
+        let routeLayer = null; // 경로 레이어를 저장할 변수
+
+        // 2. ORS API를 호출하는 함수
+        async function getRoute(startCoords, endCoords) {
+
+            // ORS는 [경도, 위도] 순서를 사용합니다. (Leaflet의 [위도, 경도]와 반대)
+            const orsStart = [startCoords.lng, startCoords.lat];
+            const orsEnd = [endCoords.lng, endCoords.lat];
+
+            const url = `https://api.openrouteservice.org/v2/directions/driving-car?start=${orsStart[0]},${orsStart[1]}&end=${orsEnd[0]},${orsEnd[1]}`;
+
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'Authorization': ORS_API_KEY
+                }
+            });
+
+            // 상세한 오류 메시지 로깅 (400의 원인 파악용)
+            if (!response.ok) {
+                const text = await response.text();
+                console.error("ORS response status:", response.status, response.statusText);
+                console.error("ORS response body:", text);
+                alert("경로 계산 실패: 서버 응답을 콘솔(Network/Console)에서 확인하세요. (status: " + response.status + ")");
+                return;
+            }
+
+            const data = await response.json();
+            // GET(GeoJSON)일 경우 coords는 features[0].geometry.coordinates
+            const coords = data.features?.[0]?.geometry?.coordinates;
+            if (!coords) {
+                console.error("GeoJSON 좌표를 찾을 수 없습니다:", data);
+                return;
+            }
+
+            // 3. 경로 그리기
+
+            // ORS가 [경도, 위도]로 준 좌표를 Leaflet이 알아듣도록 [위도, 경도]로 변환
+            const routeCoordinates = data.routes[0].geometry.coordinates.map(coord => {
+                return [coord[1], coord[0]]; // [위도, 경도] 순서로 뒤집기
+            });
+
+            // 기존 경로가 있다면 삭제
+            if (routeLayer) {
+                map.removeLayer(routeLayer);
+            }
+
+            // 새 경로를 파란색 선으로 그림
+            routeLayer = L.polyline(routeCoordinates, { color: 'blue', weight: 5 }).addTo(map);
+
+            // 지도 줌을 경로에 맞춤
+            map.fitBounds(routeLayer.getBounds());
+        }
+
+
+        // 4. 지도를 클릭했을 때 실행되는 이벤트
+        map.on('click', function (e) {
+            if (!startPoint) {
+                // 첫 번째 클릭: 출발지 설정
+                startPoint = e.latlng;
+                L.marker(startPoint).addTo(map).bindPopup("<b>Start point</b>").openPopup();
+
+            } else if (!endPoint) {
+                // 두 번째 클릭: 목적지 설정
+                endPoint = e.latlng;
+                L.marker(endPoint).addTo(map).bindPopup("<b>End point</b>").openPopup();
+
+                // 경로 계산 API 호출!
+                getRoute(startPoint, endPoint);
+
+            } else {
+                // 세 번째 클릭: 초기화
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                        map.removeLayer(layer);
+                    }
+                });
+                startPoint = null;
+                endPoint = null;
+                routeLayer = null;
+                alert("초기화되었습니다. 다시 출발지를 클릭하세요.");
+            }
+        });
+
+    </script>
+
+</body>
+
+</html>

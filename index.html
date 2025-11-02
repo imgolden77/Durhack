@@ -8,14 +8,31 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
+
+  <!-- <title>Leaflet Map test</title> -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    #map {
+      height: 500px;
+      /* Set the height of the map to 500px */
+      width: 100%;
+    }
+  </style>
+
 </head>
 
 <body>
   <main class="wrap">
     <div class="container">
       <h1 class="title">Fuel Cost Calculator</h1>
-
+      <p class="subtitle">
+        Select a car, enter a distance, choose fuel grade, and get fuel volume
+        and cost using the latest EIA weekly price.
+      </p>
       <section class="panel" aria-label="Trip inputs">
+
+        <div id="map"></div>
         <!-- Row: Year / Company / Model -->
         <div class="row-3">
           <div class="field">
@@ -40,7 +57,9 @@
           </div>
         </div>
 
-        <div id="results-div"></div>
+        <div id="results-div">
+          Car details will appear here after you pick a model.
+        </div>
 
         <!-- Row: Distance / Price per litre -->
         <div class="row-2">
@@ -51,14 +70,27 @@
           <div class="field">
             <label for="ppl">Fuel per mile(gallons/mile)</label>
             <input id="ppl" type="number" step="0.0001" placeholder="e.g. 1.45" />
+            <div class="note">Filled automatically as 1 / MPG.</div>
+          </div>
+        </div>
+
+        <!-- Row: Fuel grade -->
+        <div class="row-1">
+          <div class="field">
+            <label for="grade">Fuel grade</label>
+            <select id="grade" name="grade" aria-label="Fuel grade">
+              <option value="regular" selected>Regular</option>
+              <option value="midgrade">Midgrade</option>
+              <option value="premium">Premium</option>
+              <option value="diesel">Diesel</option>
+            </select>
+            <div id="priceNote" class="note">Price: —</div>
           </div>
         </div>
 
         <div class="spacer"></div>
-
-
         <button id="calcBtn" class="btn" type="button" aria-disabled="true" disabled>
-          Calculate total fuel
+          Calculate total fuel and cost
         </button>
       </section>
 
@@ -80,6 +112,8 @@
       const calcBtn = document.getElementById('calcBtn');
       const distanceInput = document.getElementById('distance');
       const pplInput = document.getElementById('ppl');
+      const gradeSelect = document.getElementById("grade");
+      const priceNote = document.getElementById("priceNote");
 
       // helper: set/clear results
       const setResults = (html) => { resultsDiv.innerHTML = html; };
@@ -88,19 +122,60 @@
       makeSelect.disabled = true;
       modelSelect.disabled = true;
 
+      // Fetch price helper
+      async function refreshPriceNote() {
+        try {
+          const grade = gradeSelect.value;
+          const r = await fetch(
+            `${API_BASE_URL}/fuel-price?grade=${encodeURIComponent(grade)}`
+          );
+          if (!r.ok) throw new Error(await r.text());
+          const data = await r.json();
+          priceNote.textContent = `Price: $${data.price_usd_per_gallon.toFixed(
+            2
+          )}/gal (week of ${data.date})`;
+          return data.price_usd_per_gallon;
+        } catch (e) {
+          console.error(e);
+          priceNote.textContent = "Price unavailable";
+          return null;
+        }
+      }
+
+      gradeSelect.addEventListener("change", refreshPriceNote);
+
       // Calculate button event
-      calcBtn.addEventListener('click', () => {
+      calcBtn.addEventListener('click', async () => {
         const distance = parseFloat(distanceInput.value);
         const gpm = parseFloat(pplInput.value);
         const outputEl = document.querySelector('.result');
+        const grade = gradeSelect.value;
 
-        if (isNaN(distance) || isNaN(gpm)) {
+        if (isNaN(distance) || distance <= 0 || isNaN(gpm) || gpm <= 0) {
           outputEl.textContent = 'Trip cost: Please check your inputs (distance, fuel per mile).';
           return;
         }
+        const mpg = 1 / gpm; // convert to miles per gallon expected by API
 
-        const totalGallons = distance * gpm;
-        outputEl.textContent = `Trip fuel: ${totalGallons.toFixed(4)} gallons`;
+        try {
+          const r = await fetch(`${API_BASE_URL}/trip-quote`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ miles: distance, mpg, grade }),
+          });
+          if (!r.ok) throw new Error(await r.text());
+          const q = await r.json();
+          outputEl.textContent =
+            `Trip fuel: ${q.gallons.toFixed(
+              4
+            )} gallons — Estimated cost: $${q.cost_usd.toFixed(2)} ` +
+            `(at $${q.price_usd_per_gallon.toFixed(2)}/gal, ${q.grade}, ${q.date
+            })`;
+        } catch (e) {
+          console.error(e);
+          outputEl.textContent = "Could not calculate trip cost.";
+        }
+
       });
 
       // --- 1. page load: years---
@@ -108,12 +183,10 @@
         try {
           const response = await fetch(`${API_BASE_URL}/years`);
           const data = await response.json();
-
           data.years.forEach(year => {
             const option = new Option(year, year);
             yearSelect.add(option);
           });
-
         } catch (error) {
           console.error("Fail to load years:", error);
           resultsDiv.innerHTML = "<h2>check if backend server(uvicorn) is running.</h2>";
@@ -122,7 +195,6 @@
 
       // --- 2. year choose: load maker ---
       yearSelect.onchange = async () => {
-
         makeSelect.innerHTML = '<option value="">Select Company</option>';
         modelSelect.innerHTML = '<option value="">Select model</option>';
         clearResults();
@@ -140,6 +212,9 @@
           makeSelect.add(option);
         });
         makeSelect.disabled = false;
+
+        // Update price display too
+        await refreshPriceNote();
       };
 
       // --- Choose Model ---
@@ -186,21 +261,31 @@
 
           const comb08 = car.comb08 ?? car.comb08A ?? null;
           if (comb08 == null) {
-            setResults("<h3> There is no information about MPG</h3>");
+            setResults("<h3> No MPG information available for this selection.</h3>");
           } else {
             pplInput.value = (1 / comb08).toFixed(6);
             setResults(`<div><strong>${car.model}</strong><div>Combined: ${comb08} MPG</div></div>`);
-          }
+            // Enable calculate
+            calcBtn.removeAttribute("aria-disabled");
+            calcBtn.disabled = false;
 
-          // Activate Calculate button
-          calcBtn.removeAttribute('aria-disabled');
-          calcBtn.disabled = false;
+            // Refresh fuel price note
+            await refreshPriceNote();
+
+          }
 
         } catch (error) {
           console.error("Fail to load results:", error);
           setResults("<h3>Error loading results.</h3>");
         }
       };
+
+      var map = L.map('map').setView([51.505, -0.09], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+      var marker = L.marker([51.505, -0.09]).addTo(map);
+      marker.bindPopup("<b>This is London!</b>").openPopup();
 
     </script>
     <div class="spacer"></div>
