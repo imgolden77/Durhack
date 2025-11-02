@@ -18,6 +18,14 @@
       /* Set the height of the map to 500px */
       width: 100%;
     }
+
+    .candidates {
+      color: #000;
+    }
+
+    .candidates div {
+      color: #000;
+    }
   </style>
 
 </head>
@@ -33,6 +41,22 @@
       <section class="panel" aria-label="Trip inputs">
 
         <div id="map"></div>
+        <div class="search-row" style="margin:10px 0; display:flex; gap:8px;">
+          <div style="flex:1">
+            <input id="start-search" placeholder="Search start (address or place)" style="width:100%" />
+            <div id="start-candidates" class="candidates"
+              style="background:#fff;border:1px solid #ddd;max-height:200px;overflow:auto;display:none;"></div>
+          </div>
+          <button id="start-search-btn" type="button">Set Start</button>
+          <div style="flex:1">
+            <input id="end-search" placeholder="Search end (address or place)" style="width:100%" />
+            <div id="end-candidates" class="candidates"
+              style="background:#fff;border:1px solid #ddd;max-height:200px;overflow:auto;display:none;"></div>
+          </div>
+          <button id="end-search-btn" type="button">Set End</button>
+          <button id="clear-search-btn" type="button" style="margin-left:6px">Clear</button>
+        </div>
+
         <!-- Row: Year / Company / Model -->
         <div class="row-3">
           <div class="field">
@@ -284,6 +308,122 @@
 
       const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllOGI1Y2I0MDY5OTQ0YjM4NTA0ZTY3N2Y5NmQyYTE2IiwiaCI6Im11cm11cjY0In0=';
 
+      // --- geocode helpers (ORS) ---
+      // return up to `size` candidate features mapped to {lat,lng,label}
+      async function geocodeORS(text, size = 5) {
+        if (!text) return [];
+        const url = `https://api.openrouteservice.org/geocode/search?api_key=${ORS_API_KEY}&text=${encodeURIComponent(text)}&size=${size}`;
+        const r = await fetch(url);
+        if (!r.ok) throw new Error('Geocode failed: ' + r.status);
+        const j = await r.json();
+        const feats = j.features || [];
+        return feats.map(f => {
+          const [lng, lat] = f.geometry.coordinates;
+          return { lat, lng, label: f.properties?.label || f.properties?.name || text };
+        });
+      }
+
+      function renderCandidates(containerEl, candidates, onSelect) {
+        containerEl.innerHTML = '';
+        if (!candidates || candidates.length === 0) {
+          containerEl.style.display = 'none';
+          return;
+        }
+        candidates.forEach((c, idx) => {
+          const div = document.createElement('div');
+          div.style.padding = '6px 8px';
+          div.style.cursor = 'pointer';
+          div.style.borderBottom = '1px solid #eee';
+          div.textContent = c.label;
+          div.addEventListener('click', () => {
+            onSelect(c);
+            containerEl.style.display = 'none';
+          });
+          containerEl.appendChild(div);
+        });
+        containerEl.style.display = 'block';
+      }
+
+      function placeMarkerAndZoom(pt, label) {
+        const m = L.marker([pt.lat, pt.lng]).addTo(map).bindPopup(label || '').openPopup();
+        map.setView([pt.lat, pt.lng], Math.max(map.getZoom(), 12));
+        return m;
+      }
+
+      // wire up search UI
+      const startSearchEl = document.getElementById('start-search');
+      const endSearchEl = document.getElementById('end-search');
+      const startBtn = document.getElementById('start-search-btn');
+      const endBtn = document.getElementById('end-search-btn');
+      const clearBtn = document.getElementById('clear-search-btn');
+
+      const startCandidatesEl = document.getElementById('start-candidates');
+      startBtn.addEventListener('click', async () => {
+        try {
+          const candidates = await geocodeORS(startSearchEl.value, 5);
+          if (!candidates || candidates.length === 0) return alert('Start location not found');
+          if (candidates.length === 1) {
+            const res = candidates[0];
+            startPoint = L.latLng(res.lat, res.lng);
+            placeMarkerAndZoom(res, 'Start: ' + res.label);
+            if (startPoint && endPoint) getRoute(startPoint, endPoint);
+            startCandidatesEl.style.display = 'none';
+            return;
+          }
+          renderCandidates(startCandidatesEl, candidates, (res) => {
+            startPoint = L.latLng(res.lat, res.lng);
+            placeMarkerAndZoom(res, 'Start: ' + res.label);
+            if (startPoint && endPoint) getRoute(startPoint, endPoint);
+          });
+        } catch (e) { console.error(e); alert('Start geocode error'); }
+      });
+
+      const endCandidatesEl = document.getElementById('end-candidates');
+      endBtn.addEventListener('click', async () => {
+        try {
+          const candidates = await geocodeORS(endSearchEl.value, 5);
+          if (!candidates || candidates.length === 0) return alert('End location not found');
+          if (candidates.length === 1) {
+            const res = candidates[0];
+            endPoint = L.latLng(res.lat, res.lng);
+            placeMarkerAndZoom(res, 'End: ' + res.label);
+            if (startPoint && endPoint) getRoute(startPoint, endPoint);
+            endCandidatesEl.style.display = 'none';
+            return;
+          }
+          renderCandidates(endCandidatesEl, candidates, (res) => {
+            endPoint = L.latLng(res.lat, res.lng);
+            placeMarkerAndZoom(res, 'End: ' + res.label);
+            if (startPoint && endPoint) getRoute(startPoint, endPoint);
+          });
+        } catch (e) { console.error(e); alert('End geocode error'); }
+      });
+
+      // allow Enter to trigger
+      [startSearchEl, endSearchEl].forEach(inp => {
+        inp.addEventListener('keydown', (ev) => {
+          if (ev.key === 'Enter') {
+            ev.preventDefault();
+            if (inp === startSearchEl) startBtn.click(); else endBtn.click();
+          }
+        });
+        // hide candidate box when user edits
+        inp.addEventListener('input', () => {
+          const el = inp === startSearchEl ? startCandidatesEl : endCandidatesEl;
+          if (el) el.style.display = 'none';
+        });
+      });
+
+      clearBtn.addEventListener('click', () => {
+        // remove markers and route (keeps map tiles)
+        map.eachLayer(layer => {
+          if (layer instanceof L.Marker || layer instanceof L.Polyline) map.removeLayer(layer);
+        });
+        startPoint = null; endPoint = null; routeLayer = null;
+        if (mapDistanceEl) mapDistanceEl.textContent = '—';
+        distanceInput.value = '';
+      });
+
       var map = L.map('map').setView([40.7128, -74.0060], 8);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
@@ -318,7 +458,7 @@
             const text = await response.text();
             console.error("ORS response status:", response.status, response.statusText);
             console.error("ORS response body:", text);
-            alert("Fail to calculate: Check the server console (Network/Console). (status: " + response.status + ")");
+            alert("경로 계산 실패: 서버 응답을 콘솔(Network/Console)에서 확인하세요. (status: " + response.status + ")");
             return;
           }
 
