@@ -9,7 +9,8 @@ import requests
 from dotenv import load_dotenv
 
 load_dotenv()
-EIA_KEY = "En4wAHNIFd5JCKPrulq1FObHaU1mrcn9FtY6uhWZ"
+# EIA_KEY = "En4wAHNIFd5JCKPrulq1FObHaU1mrcn9FtY6uhWZ"
+EIA_KEY = os.getenv("EIA_KEY")
 if not EIA_KEY:
     raise RuntimeError("Missing EIA_KEY in environment (.env)")
 
