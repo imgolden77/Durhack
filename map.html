@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Leaflet 지도에 경로 그리기</title>
+
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+
+        #instructions {
+            padding: 10px;
+            background: #f0f0f0;
+            border-bottom: 1px solid #ccc;
+        }
+    </style>
+</head>
+
+<body>
+
+    <div id="instructions">
+        <b>지도에 클릭:</b> 1. 출발지 선택 2. 목적지 선택
+        <div id="distance" style="margin-top:6px; font-weight:600;">거리: —</div>
+    </div>
+    <div id="map"></div>
+
+    <script>
+        // ---------------------------------------------
+        // 1. 여기에 여러분의 ORS API 키를 넣으세요
+        // ---------------------------------------------
+        const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllOGI1Y2I0MDY5OTQ0YjM4NTA0ZTY3N2Y5NmQyYTE2IiwiaCI6Im11cm11cjY0In0=';
+
+        // 지도 초기화 (이전과 동일)
+        var map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // --- ORS 연동 로직 ---
+
+        let startPoint = null;
+        let endPoint = null;
+        let routeLayer = null; // 경로 레이어를 저장할 변수
+
+        // 2. ORS API를 호출하는 함수
+        async function getRoute(startCoords, endCoords) {
+
+            // ORS는 [경도, 위도] 순서를 사용합니다. (Leaflet의 [위도, 경도]와 반대)
+            const orsStart = [startCoords.lng, startCoords.lat];
+            const orsEnd = [endCoords.lng, endCoords.lat];
+
+            // const url = `https://api.openrouteservice.org/v2/directions/driving-car?start=${orsStart[0]},${orsStart[1]}&end=${orsEnd[0]},${orsEnd[1]}&format=geojson`;
+            const url = `https://api.openrouteservice.org/v2/directions/driving-car/geojson`;
+
+            try {
+                const response = await fetch(url, {
+                    // method: 'GET',
+                    // headers: {
+                    //     'Authorization': ORS_API_KEY
+                    // }
+                    method: 'POST',
+                    headers: {
+                        'Authorization': ORS_API_KEY,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ coordinates: [orsStart, orsEnd] })
+                });
+
+                // 상세한 오류 메시지 로깅 (400의 원인 파악용)
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error("ORS response status:", response.status, response.statusText);
+                    console.error("ORS response body:", text);
+                    alert("경로 계산 실패: 서버 응답을 콘솔(Network/Console)에서 확인하세요. (status: " + response.status + ")");
+                    return;
+                }
+
+                const data = await response.json();
+                console.log("ORS response JSON:", data);
+                // GeoJSON 응답: coords는 features[0].geometry.coordinates
+                const coords = data.features?.[0]?.geometry?.coordinates;
+                if (!coords || !Array.isArray(coords) || coords.length === 0) {
+                    console.error("GeoJSON 좌표를 찾을 수 없습니다:", data);
+                    alert("경로 데이터를 받지 못했습니다. 콘솔에서 응답을 확인하세요.");
+                    return;
+                }
+
+                // 3. 경로 그리기
+
+                // ORS가 [경도, 위도]로 준 좌표를 Leaflet이 알아듣도록 [위도, 경도]로 변환
+                const routeCoordinates = coords.map(coord => [coord[1], coord[0]]);
+
+                // ORS가 제공하는 거리(summary.distance, 미터)를 화면에 표시 (있으면 사용)
+                const distanceMeters = data.features?.[0]?.properties?.summary?.distance
+                    || data.routes?.[0]?.summary?.distance;
+                const distanceEl = document.getElementById('distance');
+                if (distanceEl) {
+                    distanceEl.textContent = '거리: ' + (typeof distanceMeters === 'number' ? formatDistance(distanceMeters) : '알 수 없음');
+                }
+
+                // 기존 경로가 있다면 삭제
+                if (routeLayer) {
+                    map.removeLayer(routeLayer);
+                }
+
+                // 새 경로를 파란색 선으로 그림
+                routeLayer = L.polyline(routeCoordinates, { color: 'blue', weight: 5 }).addTo(map);
+
+                // 지도 줌을 경로에 맞춤
+                map.fitBounds(routeLayer.getBounds());
+            } catch (err) {
+                console.error("네트워크 오류:", err);
+                alert("네트워크 오류가 발생했습니다. 콘솔을 확인하세요.");
+            }
+        }
+        // 거리 포맷 함수 추가 (미터 -> "m" 또는 "km")
+        function formatDistance(meters) {
+            if (typeof meters !== 'number' || isNaN(meters)) return '알 수 없음';
+            if (meters < 1000) return Math.round(meters) + ' m';
+            return (meters / 1000).toFixed(2).replace(/\.00$/, '') + ' km';
+        }
+
+
+        // 4. 지도를 클릭했을 때 실행되는 이벤트
+        map.on('click', function (e) {
+            if (!startPoint) {
+                // 첫 번째 클릭: 출발지 설정
+                startPoint = e.latlng;
+                L.marker(startPoint).addTo(map).bindPopup("<b>Start point</b>").openPopup();
+
+            } else if (!endPoint) {
+                // 두 번째 클릭: 목적지 설정
+                endPoint = e.latlng;
+                L.marker(endPoint).addTo(map).bindPopup("<b>End point</b>").openPopup();
+
+                // 경로 계산 API 호출!
+                getRoute(startPoint, endPoint);
+
+            } else {
+                // 세 번째 클릭: 초기화
+                map.eachLayer(layer => {
+                    if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+                        map.removeLayer(layer);
+                    }
+                });
+                startPoint = null;
+                endPoint = null;
+                routeLayer = null;
+                // 거리 표시 초기화
+                const distanceEl = document.getElementById('distance');
+                if (distanceEl) distanceEl.textContent = '거리: —';
+                alert("초기화되었습니다. 다시 출발지를 클릭하세요.");
+            }
+        });
+
+    </script>
+
+</body>
+
+</html>

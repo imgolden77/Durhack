@@ -9,7 +9,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css" />
 
-  <!-- <title>Leaflet Map test</title> -->
+  <title>Leaflet Map test</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
@@ -66,6 +66,7 @@
           <div class="field">
             <label for="distance">Distance (miles)</label>
             <input id="distance" type="number" placeholder="e.g. 300" />
+            <div class="note">Or click map to auto-fill: <span id="map-distance">—</span></div>
           </div>
           <div class="field">
             <label for="ppl">Fuel per mile(gallons/mile)</label>
@@ -114,6 +115,7 @@
       const pplInput = document.getElementById('ppl');
       const gradeSelect = document.getElementById("grade");
       const priceNote = document.getElementById("priceNote");
+      const mapDistanceEl = document.getElementById('map-distance');
 
       // helper: set/clear results
       const setResults = (html) => { resultsDiv.innerHTML = html; };
@@ -280,12 +282,129 @@
         }
       };
 
-      var map = L.map('map').setView([51.505, -0.09], 13);
+      const ORS_API_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjllOGI1Y2I0MDY5OTQ0YjM4NTA0ZTY3N2Y5NmQyYTE2IiwiaCI6Im11cm11cjY0In0=';
+
+      var map = L.map('map').setView([40.7128, -74.0060], 8);
       L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: '© OpenStreetMap contributors'
       }).addTo(map);
-      var marker = L.marker([51.505, -0.09]).addTo(map);
-      marker.bindPopup("<b>This is London!</b>").openPopup();
+
+      // --- integrate ORS  ---
+
+      let startPoint = null;
+      let endPoint = null;
+      let routeLayer = null; // variable to store route layer
+
+      // 2. ORS API call function
+      async function getRoute(startCoords, endCoords) {
+        // ORS use [lng, lat] order. (Leaflet is opposite)
+        const orsStart = [startCoords.lng, startCoords.lat];
+        const orsEnd = [endCoords.lng, endCoords.lat];
+
+        const url = `https://api.openrouteservice.org/v2/directions/driving-car/geojson`;
+
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Authorization': ORS_API_KEY,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ coordinates: [orsStart, orsEnd] })
+          });
+
+          // detailed error logging (to find cause of 400)
+          if (!response.ok) {
+            const text = await response.text();
+            console.error("ORS response status:", response.status, response.statusText);
+            console.error("ORS response body:", text);
+            alert("Fail to calculate: Check the server console (Network/Console). (status: " + response.status + ")");
+            return;
+          }
+
+          const data = await response.json();
+          console.log("ORS response JSON:", data);
+          // GeoJSON response: coords= features[0].geometry.coordinates
+          const coords = data.features?.[0]?.geometry?.coordinates;
+          if (!coords || !Array.isArray(coords) || coords.length === 0) {
+            console.error("GeoJSON 좌표를 찾을 수 없습니다:", data);
+            alert("경로 데이터를 받지 못했습니다. 콘솔에서 응답을 확인하세요.");
+            return;
+          }
+
+          // 3. Draw the route
+
+          // Convert the coordinates provided by ORS from [lng, lat] to [lat, lng] for Leaflet
+          const routeCoordinates = coords.map(coord => [coord[1], coord[0]]);
+
+          // Display the distance provided by ORS (summary.distance, in meters) on the screen (if available)
+
+          const distanceMeters = data.features?.[0]?.properties?.summary?.distance
+            || data.routes?.[0]?.summary?.distance;
+          // map distance display and distance input fill
+          if (mapDistanceEl) {
+            if (typeof distanceMeters === 'number') {
+              const miles = distanceMeters / 1609.344;
+              mapDistanceEl.textContent = `${formatDistance(distanceMeters)} (${miles.toFixed(2)} mi)`;
+            } else {
+              mapDistanceEl.textContent = '알 수 없음';
+            }
+          }
+
+          const distanceInput = document.getElementById('distance');
+          if (distanceInput && typeof distanceMeters === 'number') {
+            // input is filled with miles (e.g, 12.34) — if user wants to use it for calculation
+            distanceInput.value = (distanceMeters / 1609.344).toFixed(2);
+          }
+
+          // delete existing route if any
+          if (routeLayer) {
+            map.removeLayer(routeLayer);
+          }
+
+          // Draw the new route in blue
+          routeLayer = L.polyline(routeCoordinates, { color: 'blue', weight: 5 }).addTo(map);
+
+          // fitting map zoom to route
+          map.fitBounds(routeLayer.getBounds());
+        } catch (err) {
+          console.error("네트워크 오류:", err);
+          alert("네트워크 오류가 발생했습니다. 콘솔을 확인하세요.");
+        }
+      }
+      // format distance function (meters -> "m" or "km")
+      function formatDistance(meters) {
+        if (typeof meters !== 'number' || isNaN(meters)) return '알 수 없음';
+        if (meters < 1000) return Math.round(meters) + ' m';
+        return (meters / 1000).toFixed(2).replace(/\.00$/, '') + ' km';
+      }
+
+
+      // 4. event when clicking on the map
+      map.on('click', function (e) {
+        if (!startPoint) {
+          startPoint = e.latlng;
+          L.marker(startPoint).addTo(map).bindPopup("<b>Start point</b>").openPopup();
+
+        } else if (!endPoint) {
+          endPoint = e.latlng;
+          L.marker(endPoint).addTo(map).bindPopup("<b>End point</b>").openPopup();
+          getRoute(startPoint, endPoint);
+
+        } else {
+          // if both points are set, reset
+          map.eachLayer(layer => {
+            if (layer instanceof L.Marker || layer instanceof L.Polyline) {
+              map.removeLayer(layer);
+            }
+          });
+          startPoint = null;
+          endPoint = null;
+          routeLayer = null;
+          if (mapDistanceEl) mapDistanceEl.textContent = '—';
+          alert("It is reset. Please click the starting point again.");
+        }
+      });
 
     </script>
     <div class="spacer"></div>
