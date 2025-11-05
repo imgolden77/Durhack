@@ -4,7 +4,6 @@ import sqlite3
 from typing import Dict, List, Literal, Optional
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 import requests
 from dotenv import load_dotenv
@@ -15,11 +14,6 @@ if not EIA_KEY:
     raise RuntimeError("Missing EIA_KEY in environment (.env)")
 
 app = FastAPI(title="Fuel Cost API")
-
-
-@app.get("/")
-def root():
-    return RedirectResponse(url="/docs")
 
 # Allow local file and common dev origins
 app.add_middleware(
