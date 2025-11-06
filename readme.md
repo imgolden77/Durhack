@@ -1,5 +1,9 @@
 # Drive Wise (Durhack)
 
+![Screenshot of Drive Wise](./images/demo.png "Drive Wise UI")
+
+
+
 ## Short description
 - Drive Wise is a simple demo that uses vehicle fuel-efficiency data and EIA weekly fuel prices to estimate fuel volume and trip cost. Frontend is a single HTML file with a Leaflet map; backend is a FastAPI app (main2.py).
 
@@ -22,9 +26,9 @@
 
 
 ## Install dependencies:
-    ```bash
-    pip install fastapi uvicorn python-dotenv requests
-    ```
+```bash
+pip install fastapi uvicorn python-dotenv requests
+```
 ## Run server:
 ```bash
 uvicorn main2:app --host 0.0.0.0 --port 8000 --reload
